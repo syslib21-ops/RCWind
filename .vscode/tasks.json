@@ -1,0 +1,24 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "uvicorn-8765",
+      "type": "shell",
+      "command": "python -m uvicorn serve:app --host 127.0.0.1 --port 8765 --reload",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {}
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "python",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^",
+          "endsPattern": "Uvicorn running on"
+        }
+      }
+    }
+  ]
+}

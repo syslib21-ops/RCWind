@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Uvicorn (공지 서버)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["serve:app", "--host", "127.0.0.1", "--port", "8765", "--reload"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "웹 열기 (서버 자동 시작)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://127.0.0.1:8765",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "uvicorn-8765"
+    }
+  ]
+}

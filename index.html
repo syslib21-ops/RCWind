@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="theme-color" content="#f0f4f8" />
+  <title>네이버 카페 공지 작성기</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-bg" aria-hidden="true"></div>
+  <main class="wrap">
+    <header class="header">
+      <p class="eyebrow">Cafe notice writer</p>
+      <h1 class="title">네이버 카페 공지 작성기</h1>
+      <p class="sub">키워드를 줄마다 입력하면, 위에서부터 순서대로 톤에 맞는 공지문을 <strong>문구 전용 AI 에이전트</strong>(대화형 언어 모델)이 작성합니다. 서버와 API 키가 없을 때는 오프라인 초안으로 대체됩니다.</p>
+    </header>
+
+    <section class="card" aria-labelledby="panel-keywords">
+      <h2 id="panel-keywords" class="sr-only">입력</h2>
+
+      <div class="field block-gap">
+        <div class="label-row">
+          <span class="label">키워드 <span class="label-hint">한 줄에 하나씩</span></span>
+          <span class="file-source" id="keywordSource" title="현재 표시 중인 키워드 출처"></span>
+        </div>
+        <div class="toolbar">
+          <button type="button" id="btnPickKeywordFile" class="btn btn-secondary">파일에서 불러오기</button>
+          <input type="file" id="keywordFile" accept=".txt,.md,text/plain,text/markdown" hidden />
+        </div>
+        <textarea
+          id="keywords"
+          class="input control-textarea"
+          rows="8"
+          placeholder="처음에 기본 키워드가 채워집니다. 필요하면 파일에서 불러오거나 직접 수정하세요."
+          spellcheck="false"
+        ></textarea>
+      </div>
+
+      <div class="divider" role="presentation"></div>
+
+      <fieldset class="fieldset tone-fieldset">
+        <legend class="label">말투 (톤)</legend>
+        <div class="tone-options" role="radiogroup" aria-label="말투 선택">
+          <label class="tone-opt"><input type="radio" name="tone" value="warm" checked /><span>다정하게</span></label>
+          <label class="tone-opt"><input type="radio" name="tone" value="polite" /><span>정중하게</span></label>
+          <label class="tone-opt"><input type="radio" name="tone" value="soft" /><span>부드럽게</span></label>
+        </div>
+      </fieldset>
+
+      <div class="divider" role="presentation"></div>
+
+      <div class="field model-field block-gap">
+        <label class="label" for="modelSelect">생성 모델</label>
+        <select id="modelSelect" class="input control-select" aria-describedby="modelHint">
+          <option value="">기본 (서버 환경 변수 OPENAI_MODEL)</option>
+          <option value="gpt-4o-mini" selected>gpt-4o-mini</option>
+          <option value="gpt-4o">gpt-4o</option>
+          <option value="gpt-4-turbo">gpt-4-turbo</option>
+          <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+          <option value="__custom__">직접 입력</option>
+        </select>
+        <input
+          type="text"
+          id="modelCustom"
+          class="input control-text model-custom"
+          hidden
+          spellcheck="false"
+          placeholder="모델 ID 또는 배포명을 입력하세요"
+          autocomplete="off"
+        />
+        <p class="model-hint" id="modelHint">공지 만들기 시 선택한 모델로 API를 호출합니다. OpenAI 호환 엔드포인트의 배포명도 입력할 수 있습니다.</p>
+      </div>
+
+      <div class="divider" role="presentation"></div>
+
+      <div class="action-bar action-bar-generate-only">
+        <button type="button" id="btnGenerate" class="btn btn-primary">공지 만들기</button>
+      </div>
+      <p class="hint footnote">
+        처음 로드 시 <code>defaults/keywords-base.txt</code>가 채워집니다. 공지·Shorts 저장 시 기본 제안 파일명은 <code>YYYYMMDD_버튼명</code> 형식입니다. Chrome·Edge에서는 폴더와 파일명을 고를 수 있습니다.
+        서버: <code>python -m uvicorn serve:app --port 8765</code> (8080 충돌 시) · <kbd>Ctrl</kbd>+<kbd>Enter</kbd>로 생성
+      </p>
+    </section>
+
+    <section class="card result" id="resultSection" hidden aria-live="polite">
+      <div class="result-head">
+        <span class="badge" id="toneBadge"></span>
+        <span class="meta" id="metaLine"></span>
+      </div>
+      <div class="output-shell">
+        <pre class="output" id="output"></pre>
+      </div>
+      <div class="result-save-wrap">
+        <button type="button" id="btnSave" class="btn btn-secondary" disabled>공지 저장</button>
+      </div>
+
+      <div class="divider shorts-divider" role="presentation"></div>
+
+      <section class="shorts-panel" aria-labelledby="shorts-heading">
+        <h2 id="shorts-heading" class="shorts-title">Shorts 만들기</h2>
+        <p class="shorts-lead">
+          공지 아래에서 <strong>Shorts 컷</strong>용 사진을 순서대로 고르고, 이어서 <strong>배경 음원</strong>을 선택한 뒤 생성하면 세로(9:16) 영상으로 합칩니다. <code>imageio-ffmpeg</code>로 동봉된 FFmpeg를 쓰며, PATH에 ffmpeg가 있으면 그쪽을 우선합니다.
+        </p>
+
+        <div class="field block-gap">
+          <div class="label-row">
+            <span class="label">Shorts 컷 사진</span>
+            <span class="label-hint">왼쪽부터 재생 순서 · 마우스로 썸네일을 드래그해 순서 변경(모바일은 가로 스크롤)</span>
+          </div>
+          <div class="toolbar">
+            <button type="button" id="btnPickShortsImages" class="btn btn-secondary">사진 선택</button>
+            <button type="button" id="btnClearShortsImages" class="btn btn-secondary" disabled>선택 해제</button>
+          </div>
+          <input type="file" id="shortsImages" accept="image/*" multiple hidden />
+          <div id="shortsImagePreview" class="shorts-thumb-strip" hidden></div>
+          <p id="shortsImageMeta" class="shorts-meta"></p>
+        </div>
+
+        <div class="field block-gap">
+          <div class="label-row">
+            <span class="label">배경 음원</span>
+            <span class="label-hint">mp3, wav, m4a 등</span>
+          </div>
+          <div class="toolbar shorts-audio-toolbar">
+            <button type="button" id="btnPickShortsAudio" class="btn btn-secondary">음원 파일 선택</button>
+            <span id="shortsAudioMeta" class="shorts-audio-meta" role="status" aria-live="polite"></span>
+            <button type="button" id="btnClearShortsAudio" class="btn btn-secondary" disabled>음원 해제</button>
+          </div>
+          <input type="file" id="shortsAudio" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac" hidden />
+        </div>
+
+        <div class="action-bar shorts-actions shorts-actions-generate-only">
+          <button type="button" id="btnShortsGenerate" class="btn btn-primary" disabled>Shorts 생성</button>
+        </div>
+        <p class="hint shorts-footnote">
+          음원 길이에 맞춰 사진마다 표시 시간이 균등하게 나뉩니다. 생성이 끝나면 미리보기가 나타나며, <strong>Shorts 저장</strong>으로 MP4 파일을 저장할 수 있습니다.
+        </p>
+        <div id="shortsVideoWrap" class="shorts-video-wrap" hidden>
+          <p class="label shorts-preview-label">미리보기</p>
+          <video id="shortsPreview" class="shorts-video" controls playsinline></video>
+          <div class="shorts-save-wrap">
+            <button type="button" id="btnShortsSave" class="btn btn-secondary" disabled>Shorts 저장</button>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
