@@ -301,7 +301,7 @@
   }
 
   function updateShortsGenerateEnabled() {
-    btnShortsGenerate.disabled = !(shortsImageFiles.length > 0 && shortsAudioFile);
+    btnShortsGenerate.disabled = shortsImageFiles.length === 0;
   }
 
   function clearShortsThumbDragStyles() {
@@ -535,7 +535,7 @@
   });
 
   btnShortsGenerate.addEventListener("click", async () => {
-    if (!shortsImageFiles.length || !shortsAudioFile) return;
+    if (!shortsImageFiles.length) return;
     const prevLabel = btnShortsGenerate.textContent;
     btnShortsGenerate.disabled = true;
     btnShortsGenerate.textContent = "생성 중…";
@@ -544,7 +544,9 @@
       for (const f of shortsImageFiles) {
         form.append("images", f, f.name);
       }
-      form.append("audio", shortsAudioFile, shortsAudioFile.name);
+      if (shortsAudioFile) {
+        form.append("audio", shortsAudioFile, shortsAudioFile.name);
+      }
       const res = await fetch("/api/shorts", { method: "POST", body: form });
       if (!res.ok) {
         let detail = res.statusText || "요청 실패";

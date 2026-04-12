@@ -14,8 +14,9 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -147,6 +148,8 @@ MAX_SHORTS_AUDIO_BYTES = 45 * 1024 * 1024
 MIN_AUDIO_SEC = 0.4
 MAX_AUDIO_SEC = 600
 MIN_SLIDE_SEC = 0.25
+# 음원 없을 때 컷당 표시 시간(초)
+DEFAULT_SLIDE_NO_AUDIO_SEC = 3.0
 
 
 def _resolve_ffmpeg_exe() -> str:
@@ -228,6 +231,28 @@ _FFMPEG_DURATION_RE = re.compile(
 )
 
 
+def _unlink_quiet(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+async def _stream_upload_to_file(up: UploadFile, dest: Path, max_bytes: int, too_big_detail: str) -> None:
+    """업로드를 디스크에 쓰며 max_bytes를 넘기면 HTTP 400."""
+    total = 0
+    chunk = 1024 * 1024
+    with dest.open("wb") as wf:
+        while True:
+            part = await up.read(chunk)
+            if not part:
+                break
+            total += len(part)
+            if total > max_bytes:
+                raise HTTPException(status_code=400, detail=too_big_detail)
+            wf.write(part)
+
+
 def _probe_audio_duration_sec(ffmpeg: str, audio_path: Path) -> float:
     """ffprobe 없이 ffmpeg stderr의 Duration 한 줄로 길이(초) 파싱."""
     r = subprocess.run(
@@ -276,9 +301,9 @@ app = FastAPI(title="네이버 카페 공지 작성기 API")
 @app.post("/api/shorts")
 async def api_shorts(
     images: list[UploadFile] = File(...),
-    audio: UploadFile = File(...),
+    audio: UploadFile | None = File(default=None),
 ):
-    """선택한 사진을 순서대로 이어 세로(1080×1920) 영상으로 만들고 음원을 붙입니다."""
+    """선택한 사진을 순서대로 이어 세로(1080×1920) 영상으로 만듭니다. 음원은 선택 사항입니다."""
     ffmpeg = _resolve_ffmpeg_exe()
     if not ffmpeg:
         raise HTTPException(
@@ -302,74 +327,127 @@ async def api_shorts(
         work = Path(tmp)
         img_paths: list[Path] = []
         for i, up in enumerate(images):
-            data = await up.read()
-            if len(data) > MAX_SHORTS_IMAGE_BYTES:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"{i + 1}번째 사진이 너무 큽니다(한 장당 약 {MAX_SHORTS_IMAGE_BYTES // (1024 * 1024)}MB 제한).",
-                )
             ext = _image_ext(up.filename or "", up.content_type)
             p = work / f"img{i:03d}{ext}"
-            p.write_bytes(data)
+            await _stream_upload_to_file(
+                up,
+                p,
+                MAX_SHORTS_IMAGE_BYTES,
+                f"{i + 1}번째 사진이 너무 큽니다(한 장당 약 {MAX_SHORTS_IMAGE_BYTES // (1024 * 1024)}MB 제한).",
+            )
             img_paths.append(p)
 
-        audio_bytes = await audio.read()
-        if len(audio_bytes) > MAX_SHORTS_AUDIO_BYTES:
-            raise HTTPException(status_code=400, detail="음원 파일이 너무 큽니다.")
-        ap = work / f"track{_audio_ext(audio.filename or '', audio.content_type)}"
-        ap.write_bytes(audio_bytes)
-
-        duration = _probe_audio_duration_sec(ffmpeg, ap)
         n = len(img_paths)
-        segment = duration / n
-        if segment < MIN_SLIDE_SEC:
-            segment = MIN_SLIDE_SEC
+        has_audio = False
+        ap: Path | None = None
+        if audio is not None and (audio.filename or "").strip():
+            ap = work / f"track{_audio_ext(audio.filename or '', audio.content_type)}"
+            await _stream_upload_to_file(
+                audio,
+                ap,
+                MAX_SHORTS_AUDIO_BYTES,
+                "음원 파일이 너무 큽니다.",
+            )
+            if ap.stat().st_size > 0:
+                has_audio = True
+            else:
+                ap.unlink(missing_ok=True)
+                ap = None
+
+        if has_audio and ap is not None:
+            duration = _probe_audio_duration_sec(ffmpeg, ap)
+            segment = duration / n
+            if segment < MIN_SLIDE_SEC:
+                segment = MIN_SLIDE_SEC
+        else:
+            segment = DEFAULT_SLIDE_NO_AUDIO_SEC
 
         concat_list = work / "concat.txt"
         _write_ffconcat(img_paths, segment, concat_list)
         out_mp4 = work / "out.mp4"
 
-        cmd = [
-            ffmpeg,
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(concat_list),
-            "-i",
-            str(ap),
-            "-vf",
+        vf = (
             "scale=1080:1920:force_original_aspect_ratio=decrease,"
             "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,"
-            "format=yuv420p,setsar=1",
-            "-r",
-            "30",
-            "-map",
-            "0:v:0",
-            "-map",
-            "1:a:0",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "23",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-movflags",
-            "+faststart",
-            "-shortest",
-            str(out_mp4),
-        ]
+            "format=yuv420p,setsar=1"
+        )
+
+        if has_audio and ap is not None:
+            cmd = [
+                ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-threads",
+                "1",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_list),
+                "-i",
+                str(ap),
+                "-vf",
+                vf,
+                "-r",
+                "30",
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a:0",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-crf",
+                "23",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "128k",
+                "-movflags",
+                "+faststart",
+                "-shortest",
+                str(out_mp4),
+            ]
+        else:
+            cmd = [
+                ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-threads",
+                "1",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_list),
+                "-vf",
+                vf,
+                "-r",
+                "30",
+                "-map",
+                "0:v:0",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-crf",
+                "23",
+                "-pix_fmt",
+                "yuv420p",
+                "-an",
+                "-movflags",
+                "+faststart",
+                str(out_mp4),
+            ]
         try:
             proc = subprocess.run(
                 cmd,
@@ -384,14 +462,23 @@ async def api_shorts(
             err = (proc.stderr or proc.stdout or "")[:900]
             raise HTTPException(status_code=500, detail=f"Shorts 인코딩에 실패했습니다: {err}")
 
-        mp4 = out_mp4.read_bytes()
-        if not mp4:
+        if not out_mp4.is_file() or out_mp4.stat().st_size == 0:
             raise HTTPException(status_code=500, detail="생성된 MP4가 비어 있습니다.")
 
-    return Response(
-        content=mp4,
+        fd, deliver_name = tempfile.mkstemp(suffix=".mp4")
+        os.close(fd)
+        deliver = Path(deliver_name)
+        try:
+            os.unlink(deliver_name)
+        except OSError:
+            pass
+        shutil.move(str(out_mp4), str(deliver))
+
+    return FileResponse(
+        path=deliver,
         media_type="video/mp4",
-        headers={"Content-Disposition": 'inline; filename="shorts.mp4"'},
+        filename="shorts.mp4",
+        background=BackgroundTask(_unlink_quiet, deliver),
     )
 
 
