@@ -505,12 +505,27 @@ code {
 .result-save-wrap {
   margin-top: 0.85rem;
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   justify-content: flex-start;
 }
 
 .result-save-wrap .btn {
   flex: 0 1 auto;
   min-width: min(100%, 8.5rem);
+}
+
+.copy-plain-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.55;
+  text-align: left;
+}
+
+.copy-plain-hint strong {
+  color: var(--text-soft);
+  font-weight: 700;
 }
 
 /* —— Shorts (below notice) —— */

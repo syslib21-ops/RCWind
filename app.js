@@ -120,6 +120,7 @@
   const toneRadios = document.querySelectorAll('input[name="tone"]');
   const btnGenerate = document.getElementById("btnGenerate");
   const btnSave = document.getElementById("btnSave");
+  const btnCopyPlain = document.getElementById("btnCopyPlain");
   const resultSection = document.getElementById("resultSection");
   const toneBadge = document.getElementById("toneBadge");
   const metaLine = document.getElementById("metaLine");
@@ -230,6 +231,26 @@
       keywordsInput.value = stripBom(KEYWORDS_FALLBACK_TEXT).replace(/\r\n/g, "\n");
       setKeywordSourceLabel("기본: 내장(서버 미연결)");
     }
+  }
+
+  /**
+   * @param {string} text
+   */
+  async function copyPlainTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    if (!ok) throw new Error("복사에 실패했습니다.");
   }
 
   function downloadText(filename, text) {
@@ -650,6 +671,7 @@
     btnGenerate.disabled = true;
     btnGenerate.textContent = "생성 중…";
     btnSave.disabled = true;
+    btnCopyPlain.disabled = true;
 
     let body = "";
     let badgeExtra = "";
@@ -699,6 +721,7 @@
       outputEl.textContent = body;
       resultSection.hidden = false;
       btnSave.disabled = false;
+      btnCopyPlain.disabled = false;
       updateShortsGenerateEnabled();
     } finally {
       btnGenerate.textContent = prevLabel;
@@ -709,6 +732,24 @@
   btnSave.addEventListener("click", async () => {
     if (!lastBody) return;
     await saveTextWithLocation(lastBody, buildDatedSaveFilename(btnSave.textContent.trim(), ".txt"));
+  });
+
+  btnCopyPlain.addEventListener("click", async () => {
+    if (!lastBody) return;
+    const prev = btnCopyPlain.textContent;
+    try {
+      await copyPlainTextToClipboard(lastBody);
+      btnCopyPlain.textContent = "복사됨";
+      setTimeout(() => {
+        btnCopyPlain.textContent = prev;
+      }, 1600);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(
+        `클립보드 복사에 실패했습니다: ${msg}\n` +
+          "메모장에 붙여 넣은 뒤 다시 복사하거나, https 주소에서 이 페이지를 여세요."
+      );
+    }
   });
 
   updateShortsGenerateEnabled();
