@@ -690,8 +690,8 @@ code {
   display: block;
   width: 100%;
   max-width: 100%;
-  max-height: min(52vh, 22rem);
-  max-height: min(52vh, 48dvh, 22rem);
+  max-height: min(65vh, 30rem);
+  max-height: min(65vh, 58dvh, 30rem);
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: #0f172a;
@@ -758,8 +758,8 @@ code {
   }
 
   .shorts-video {
-    max-height: min(40vh, 17rem);
-    max-height: min(40dvh, 17rem);
+    max-height: min(52vh, 24rem);
+    max-height: min(52dvh, 24rem);
   }
 
   .hint.footnote {

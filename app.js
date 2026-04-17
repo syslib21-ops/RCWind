@@ -120,7 +120,6 @@
   const toneRadios = document.querySelectorAll('input[name="tone"]');
   const btnGenerate = document.getElementById("btnGenerate");
   const btnSave = document.getElementById("btnSave");
-  const btnCopyPlain = document.getElementById("btnCopyPlain");
   const resultSection = document.getElementById("resultSection");
   const toneBadge = document.getElementById("toneBadge");
   const metaLine = document.getElementById("metaLine");
@@ -141,6 +140,24 @@
   const shortsPreview = document.getElementById("shortsPreview");
 
   let lastBody = "";
+
+  /**
+   * 공지 본문이 있을 때만 저장·네이버용 복사 활성화.
+   * id로 매번 찾아서(캐시된 참조와 DOM 불일치 방지) disabled 속성까지 맞춥니다.
+   * @param {boolean} enabled
+   */
+  function setNoticeExportButtonsEnabled(enabled) {
+    for (const id of ["btnSave", "btnCopyPlain"]) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.disabled = !enabled;
+      if (enabled) {
+        el.removeAttribute("disabled");
+      } else {
+        el.setAttribute("disabled", "disabled");
+      }
+    }
+  }
 
   /** @type {File[]} */
   let shortsImageFiles = [];
@@ -670,8 +687,7 @@
     const prevLabel = btnGenerate.textContent;
     btnGenerate.disabled = true;
     btnGenerate.textContent = "생성 중…";
-    btnSave.disabled = true;
-    btnCopyPlain.disabled = true;
+    setNoticeExportButtonsEnabled(false);
 
     let body = "";
     let badgeExtra = "";
@@ -720,8 +736,7 @@
       metaLine.textContent = `생성 시각 ${now.toLocaleString("ko-KR")}${metaExtra}`;
       outputEl.textContent = body;
       resultSection.hidden = false;
-      btnSave.disabled = false;
-      btnCopyPlain.disabled = false;
+      setNoticeExportButtonsEnabled(true);
       updateShortsGenerateEnabled();
     } finally {
       btnGenerate.textContent = prevLabel;
@@ -734,23 +749,27 @@
     await saveTextWithLocation(lastBody, buildDatedSaveFilename(btnSave.textContent.trim(), ".txt"));
   });
 
-  btnCopyPlain.addEventListener("click", async () => {
-    if (!lastBody) return;
-    const prev = btnCopyPlain.textContent;
-    try {
-      await copyPlainTextToClipboard(lastBody);
-      btnCopyPlain.textContent = "복사됨";
-      setTimeout(() => {
-        btnCopyPlain.textContent = prev;
-      }, 1600);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      alert(
-        `클립보드 복사에 실패했습니다: ${msg}\n` +
-          "메모장에 붙여 넣은 뒤 다시 복사하거나, https 주소에서 이 페이지를 여세요."
-      );
-    }
-  });
+  const copyPlainBtn = document.getElementById("btnCopyPlain");
+  if (copyPlainBtn) {
+    copyPlainBtn.addEventListener("click", async () => {
+      if (!lastBody) return;
+      const prev = copyPlainBtn.textContent;
+      try {
+        await copyPlainTextToClipboard(lastBody);
+        copyPlainBtn.textContent = "복사됨";
+        setTimeout(() => {
+          copyPlainBtn.textContent = prev;
+        }, 1600);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        alert(
+          `클립보드 복사에 실패했습니다: ${msg}\n` +
+            "메모장에 붙여 넣은 뒤 다시 복사하거나, https 주소에서 이 페이지를 여세요."
+        );
+      }
+    });
+  }
 
   updateShortsGenerateEnabled();
+  setNoticeExportButtonsEnabled(!!(lastBody && lastBody.trim()));
 })();
