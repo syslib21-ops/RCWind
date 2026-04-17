@@ -298,8 +298,10 @@
     shortsVideoWrap.hidden = true;
     lastShortsBlob = null;
     btnShortsSave.disabled = true;
+    updateShortsGenerateEnabled();
   }
 
+  /** 음원 없이 사진만 있어도 Shorts 생성 가능 */
   function updateShortsGenerateEnabled() {
     btnShortsGenerate.disabled = shortsImageFiles.length === 0;
   }
@@ -560,7 +562,8 @@
         alert(detail);
         return;
       }
-      const blob = await res.blob();
+      const buf = await res.arrayBuffer();
+      const blob = new Blob([buf], { type: "video/mp4" });
       if (!blob.size) {
         alert("서버에서 빈 응답을 받았습니다.");
         return;
@@ -696,6 +699,7 @@
       outputEl.textContent = body;
       resultSection.hidden = false;
       btnSave.disabled = false;
+      updateShortsGenerateEnabled();
     } finally {
       btnGenerate.textContent = prevLabel;
       btnGenerate.disabled = false;
@@ -706,4 +710,6 @@
     if (!lastBody) return;
     await saveTextWithLocation(lastBody, buildDatedSaveFilename(btnSave.textContent.trim(), ".txt"));
   });
+
+  updateShortsGenerateEnabled();
 })();
