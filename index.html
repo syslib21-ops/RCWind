@@ -109,7 +109,7 @@
       <section class="shorts-panel" aria-labelledby="shorts-heading">
         <h2 id="shorts-heading" class="shorts-title">Shorts 만들기</h2>
         <p class="shorts-lead">
-          공지 아래에서 <strong>Shorts 컷</strong>용 사진만으로도 세로(9:16) 영상을 만들 수 있고, <strong>배경 음원</strong>을 고르면 그 길이에 맞춰 컷 길이가 나뉩니다. <code>imageio-ffmpeg</code>로 동봉된 FFmpeg를 쓰며, PATH에 ffmpeg가 있으면 그쪽을 우선합니다.
+          공지 아래에서 <strong>Shorts 컷</strong>용 사진만으로도 세로(9:16) 영상을 만들 수 있고, <strong>배경 음원</strong>을 고르면 컷마다 약 3초씩 사진 순서를 돌리다가 끝에 다시 처음부터 반복해 음원이 끝날 때까지 이어 붙입니다. <code>imageio-ffmpeg</code>로 동봉된 FFmpeg를 쓰며, PATH에 ffmpeg가 있으면 그쪽을 우선합니다.
         </p>
 
         <div class="field block-gap">
@@ -143,7 +143,7 @@
           <button type="button" id="btnShortsGenerate" class="btn btn-primary" disabled>Shorts 생성</button>
         </div>
         <p class="hint shorts-footnote">
-          음원이 있으면 그 길이에 맞춰 컷마다 시간이 균등하게 나뉘고, 없으면 컷당 약 3초짜리 무음 영상이 됩니다. 생성이 끝나면 미리보기가 나타나며, <strong>Shorts 저장</strong>으로 MP4 파일을 저장할 수 있습니다.
+          음원이 있으면 컷당 약 3초로 사진을 순서대로 보여 주고, 한 바퀴 끝나면 다시 첫 컷부터 반복합니다(음원이 끝날 때까지). 음원이 없으면 한 번만 순서대로 약 3초씩 무음 영상이 됩니다. 생성이 끝나면 미리보기가 나타나며, <strong>Shorts 저장</strong>으로 MP4 파일을 저장할 수 있습니다.
         </p>
         <div id="shortsVideoWrap" class="shorts-video-wrap" hidden>
           <p class="label shorts-preview-label">미리보기</p>

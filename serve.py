@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import math
 import os
 import re
 import shutil
@@ -147,9 +148,9 @@ MAX_SHORTS_IMAGE_BYTES = 15 * 1024 * 1024
 MAX_SHORTS_AUDIO_BYTES = 45 * 1024 * 1024
 MIN_AUDIO_SEC = 0.4
 MAX_AUDIO_SEC = 600
-MIN_SLIDE_SEC = 0.25
-# 음원 없을 때 컷당 표시 시간(초)
-DEFAULT_SLIDE_NO_AUDIO_SEC = 3.0
+# 컷당 표시 시간(초): 음원 있을 때는 고정, 없을 때도 동일
+SHORTS_SLIDE_SEC = 3.0
+DEFAULT_SLIDE_NO_AUDIO_SEC = SHORTS_SLIDE_SEC
 
 
 def _resolve_ffmpeg_exe() -> str:
@@ -223,6 +224,17 @@ def _write_ffconcat(image_paths: list[Path], segment_sec: float, out_txt: Path) 
     if image_paths:
         lines.append(f"file '{_escape_concat_path(image_paths[-1])}'")
     out_txt.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _looped_image_paths_for_audio_duration(
+    image_paths: list[Path], audio_sec: float, slide_sec: float
+) -> list[Path]:
+    """음원이 끝날 때까지 컷을 slide_sec마다 바꾸며, 컷 순서는 이미지 목록을 반복 순환."""
+    n = len(image_paths)
+    if n == 0:
+        return []
+    need = max(1, math.ceil(audio_sec / slide_sec))
+    return [image_paths[i % n] for i in range(need)]
 
 
 _FFMPEG_DURATION_RE = re.compile(
@@ -303,7 +315,8 @@ async def api_shorts(
     images: list[UploadFile] = File(...),
     audio: UploadFile | None = File(default=None),
 ):
-    """선택한 사진을 순서대로 이어 세로(1080×1920) 영상으로 만듭니다. 음원은 선택 사항입니다."""
+    """선택한 사진을 순서대로 이어 세로(1080×1920) 영상으로 만듭니다.
+    음원이 있으면 컷당 고정 시간으로 사진을 순환하며 음원 길이까지 이어 붙입니다(선택)."""
     ffmpeg = _resolve_ffmpeg_exe()
     if not ffmpeg:
         raise HTTPException(
@@ -337,7 +350,6 @@ async def api_shorts(
             )
             img_paths.append(p)
 
-        n = len(img_paths)
         has_audio = False
         ap: Path | None = None
         if audio is not None and (audio.filename or "").strip():
@@ -354,16 +366,15 @@ async def api_shorts(
                 ap.unlink(missing_ok=True)
                 ap = None
 
+        slide = SHORTS_SLIDE_SEC
         if has_audio and ap is not None:
             duration = _probe_audio_duration_sec(ffmpeg, ap)
-            segment = duration / n
-            if segment < MIN_SLIDE_SEC:
-                segment = MIN_SLIDE_SEC
+            concat_paths = _looped_image_paths_for_audio_duration(img_paths, duration, slide)
         else:
-            segment = DEFAULT_SLIDE_NO_AUDIO_SEC
+            concat_paths = img_paths
 
         concat_list = work / "concat.txt"
-        _write_ffconcat(img_paths, segment, concat_list)
+        _write_ffconcat(concat_paths, slide, concat_list)
         out_mp4 = work / "out.mp4"
 
         vf = (
