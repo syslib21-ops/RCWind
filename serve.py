@@ -4,7 +4,6 @@
 """
 from __future__ import annotations
 
-import math
 import os
 import re
 import shutil
@@ -226,17 +225,6 @@ def _write_ffconcat(image_paths: list[Path], segment_sec: float, out_txt: Path) 
     out_txt.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _looped_image_paths_for_audio_duration(
-    image_paths: list[Path], audio_sec: float, slide_sec: float
-) -> list[Path]:
-    """음원이 끝날 때까지 컷을 slide_sec마다 바꾸며, 컷 순서는 이미지 목록을 반복 순환."""
-    n = len(image_paths)
-    if n == 0:
-        return []
-    need = max(1, math.ceil(audio_sec / slide_sec))
-    return [image_paths[i % n] for i in range(need)]
-
-
 _FFMPEG_DURATION_RE = re.compile(
     r"Duration:\s*(\d+):(\d{2}):(\d{2})(\.\d+)?",
     re.IGNORECASE,
@@ -316,7 +304,8 @@ async def api_shorts(
     audio: UploadFile | None = File(default=None),
 ):
     """선택한 사진을 순서대로 이어 세로(1080×1920) 영상으로 만듭니다.
-    음원이 있으면 컷당 고정 시간으로 사진을 순환하며 음원 길이까지 이어 붙입니다(선택)."""
+    음원이 있으면 사진 한 바퀴(컷당 고정 초×장수)만큼만 영상으로 만들고,
+    음원은 그 길이를 넘지 않게 앞부분만 사용합니다(긴 음원으로 인코딩이 지나치게 길어지지 않게 함)."""
     ffmpeg = _resolve_ffmpeg_exe()
     if not ffmpeg:
         raise HTTPException(
@@ -367,14 +356,15 @@ async def api_shorts(
                 ap = None
 
         slide = SHORTS_SLIDE_SEC
+        cycle_sec = len(img_paths) * slide
+        output_duration_sec: float | None = None
         if has_audio and ap is not None:
-            duration = _probe_audio_duration_sec(ffmpeg, ap)
-            concat_paths = _looped_image_paths_for_audio_duration(img_paths, duration, slide)
-        else:
-            concat_paths = img_paths
+            audio_sec = _probe_audio_duration_sec(ffmpeg, ap)
+            # 한 바퀴 컷 전체 길이와 음원 중 짧은 쪽만 사용(긴 음원 전체를 깔면 인코딩·메모리 부담이 큼)
+            output_duration_sec = min(audio_sec, cycle_sec)
 
         concat_list = work / "concat.txt"
-        _write_ffconcat(concat_paths, slide, concat_list)
+        _write_ffconcat(img_paths, slide, concat_list)
         out_mp4 = work / "out.mp4"
 
         vf = (
@@ -383,7 +373,7 @@ async def api_shorts(
             "format=yuv420p,setsar=1"
         )
 
-        if has_audio and ap is not None:
+        if has_audio and ap is not None and output_duration_sec is not None:
             cmd = [
                 ffmpeg,
                 "-hide_banner",
@@ -426,7 +416,8 @@ async def api_shorts(
                 "128k",
                 "-movflags",
                 "+faststart",
-                "-shortest",
+                "-t",
+                f"{output_duration_sec:.6f}",
                 str(out_mp4),
             ]
         else:
