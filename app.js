@@ -139,7 +139,13 @@
   const shortsVideoWrap = document.getElementById("shortsVideoWrap");
   const shortsPreview = document.getElementById("shortsPreview");
 
-  let lastBody = "";
+  /**
+   * 현재 공지 편집 상자 내용(앞뒤 공백 제외).
+   * @returns {string}
+   */
+  function getNoticeBodyTrimmed() {
+    return outputEl.value.replace(/^\s+|\s+$/g, "");
+  }
 
   /**
    * 공지 본문이 있을 때만 저장·네이버용 복사 활성화.
@@ -729,14 +735,12 @@
         }
       }
 
-      lastBody = body;
-
       toneBadge.textContent = baseLabel + badgeExtra;
       const now = new Date();
       metaLine.textContent = `생성 시각 ${now.toLocaleString("ko-KR")}${metaExtra}`;
-      outputEl.textContent = body;
+      outputEl.value = body;
       resultSection.hidden = false;
-      setNoticeExportButtonsEnabled(true);
+      setNoticeExportButtonsEnabled(!!getNoticeBodyTrimmed());
       updateShortsGenerateEnabled();
     } finally {
       btnGenerate.textContent = prevLabel;
@@ -745,17 +749,19 @@
   });
 
   btnSave.addEventListener("click", async () => {
-    if (!lastBody) return;
-    await saveTextWithLocation(lastBody, buildDatedSaveFilename(btnSave.textContent.trim(), ".txt"));
+    const text = getNoticeBodyTrimmed();
+    if (!text) return;
+    await saveTextWithLocation(text, buildDatedSaveFilename(btnSave.textContent.trim(), ".txt"));
   });
 
   const copyPlainBtn = document.getElementById("btnCopyPlain");
   if (copyPlainBtn) {
     copyPlainBtn.addEventListener("click", async () => {
-      if (!lastBody) return;
+      const text = getNoticeBodyTrimmed();
+      if (!text) return;
       const prev = copyPlainBtn.textContent;
       try {
-        await copyPlainTextToClipboard(lastBody);
+        await copyPlainTextToClipboard(text);
         copyPlainBtn.textContent = "복사됨";
         setTimeout(() => {
           copyPlainBtn.textContent = prev;
@@ -770,6 +776,10 @@
     });
   }
 
+  outputEl.addEventListener("input", () => {
+    setNoticeExportButtonsEnabled(!!getNoticeBodyTrimmed());
+  });
+
   updateShortsGenerateEnabled();
-  setNoticeExportButtonsEnabled(!!(lastBody && lastBody.trim()));
+  setNoticeExportButtonsEnabled(!!getNoticeBodyTrimmed());
 })();

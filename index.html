@@ -91,8 +91,17 @@
         <span class="badge" id="toneBadge"></span>
         <span class="meta" id="metaLine"></span>
       </div>
+      <p class="label result-notice-label" id="resultNoticeLabel">생성된 공지 <span class="label-hint">직접 수정 가능</span></p>
       <div class="output-shell">
-        <pre class="output" id="output"></pre>
+        <textarea
+          id="output"
+          class="output output-editable"
+          rows="16"
+          spellcheck="true"
+          autocomplete="off"
+          aria-labelledby="resultNoticeLabel"
+          placeholder="공지 만들기를 실행하면 여기에 문구가 나타납니다. 필요하면 이 상자에서 바로 고칠 수 있습니다."
+        ></textarea>
       </div>
       <div class="result-save-wrap">
         <button type="button" id="btnCopyPlain" class="btn btn-secondary" disabled>
@@ -101,7 +110,7 @@
         <button type="button" id="btnSave" class="btn btn-secondary" disabled>공지 저장</button>
       </div>
       <p class="hint copy-plain-hint">
-        <strong>네이버용 복사</strong>는 서식 없는 순수 텍스트만 클립보드에 넣습니다. 카페 글쓰기에 붙여넣기(<kbd>Ctrl</kbd>+<kbd>V</kbd>)하면 본문처럼 들어가기 쉽습니다.
+        <strong>네이버용 복사</strong>·<strong>공지 저장</strong>은 위 상자에 적힌 그대로(수정 반영) 처리됩니다. 복사는 서식 없는 순수 텍스트만 클립보드에 넣으며, 카페 글쓰기에 붙여넣기(<kbd>Ctrl</kbd>+<kbd>V</kbd>)하면 본문처럼 들어가기 쉽습니다.
       </p>
 
       <div class="divider shorts-divider" role="presentation"></div>

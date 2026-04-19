@@ -490,6 +490,10 @@ code {
   -webkit-overflow-scrolling: touch;
 }
 
+.result-notice-label {
+  margin: 0 0 0.45rem;
+}
+
 .output {
   margin: 0;
   padding: 1rem 1.1rem;
@@ -500,6 +504,26 @@ code {
   font-size: clamp(0.9375rem, 0.35rem + 2.5vw, 1rem);
   line-height: 1.75;
   color: var(--text);
+}
+
+textarea.output.output-editable {
+  display: block;
+  width: 100%;
+  min-height: 12rem;
+  resize: vertical;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  border-radius: inherit;
+}
+
+textarea.output.output-editable:focus {
+  outline: none;
+}
+
+.output-shell:focus-within {
+  border-color: rgba(13, 148, 136, 0.35);
+  box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.12);
 }
 
 .result-save-wrap {
