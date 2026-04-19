@@ -486,8 +486,8 @@ code {
   background: #f8fafc;
   max-height: min(28rem, 70vh);
   max-height: min(28rem, 70vh, 72dvh);
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
+  /* 스크롤은 textarea 한 곳만 (셸+textarea 이중 스크롤 방지) */
+  overflow: hidden;
 }
 
 .result-notice-label {
@@ -510,11 +510,16 @@ textarea.output.output-editable {
   display: block;
   width: 100%;
   min-height: 12rem;
+  max-height: min(28rem, 70vh);
+  max-height: min(28rem, 70vh, 72dvh);
   resize: vertical;
   box-sizing: border-box;
   border: 0;
   background: transparent;
   border-radius: inherit;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 textarea.output.output-editable:focus {
